@@ -1,0 +1,30 @@
+<launch>
+    <arg name="map_frame" default="map"/>
+    <arg name="localization_topic" default="/amcl_pose" doc="Topic that provides the vehicle's pose in the map frame"/>
+    <arg name="scan_topic" default="/scan" doc="Topic for the LiDAR laser scan data"/>
+    <arg name="global_path_topic" default="/racing_line" doc="Topic for the pre-computed global racing line"/>
+
+
+    <node pkg="f1tenth_obstacle_avoidance" type="lidar_perception.py" name="lidar_perception" output="screen">
+        <remap from="/scan" to="$(arg scan_topic)"/>
+        <param name="map_frame" value="$(arg map_frame)"/>
+        <param name="clustering_eps" value="0.25"/>
+        <param name="clustering_min_samples" value="3"/>
+    </node>
+
+    <node pkg="f1tenth_obstacle_avoidance" type="behavioral_planner_fsm.py" name="behavioral_planner_fsm" output="screen">
+        <remap from="/amcl_pose" to="$(arg localization_topic)"/>
+        <remap from="/racing_line" to="$(arg global_path_topic)"/>
+        <param name="map_frame" value="$(arg map_frame)"/>
+        <param name="decision_lookahead_dist" value="4.0"/>
+        <param name="lateral_safety_margin" value="0.5"/>
+    </node>
+
+    <node pkg="f1tenth_obstacle_avoidance" type="pursuit_controller.py" name="pursuit_controller" output="screen">
+        <remap from="/amcl_pose" to="$(arg localization_topic)"/>
+        <param name="lookahead_distance" value="1.5"/>
+        <param name="max_speed" value="3.0"/>
+        <param name="wheelbase" value="0.325"/>
+    </node>
+
+</launch>
