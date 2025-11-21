@@ -1,0 +1,76 @@
+<launch>
+    
+
+
+    <param name="robot_description" textfile="$(find cartographer_ros)/urdf/f1_car.urdf" />
+    <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" />
+
+
+
+<!-- Hokuyo LIDAR driver -->
+
+  <node pkg="urg_node" type="urg_node" name="hokuyo_lidar" output="screen">
+    <param name="ip_address" value="192.168.0.10"/>  <!-- adjust for your Hokuyo -->
+    <param name="ip_port" value="10940"/>
+    <param name="frame_id" value="lidar_link"/>
+    <param name="angle_min" value="-90.1"/>
+    <param name="angle_max" value="90.1"/>
+    <param name="min_range" value="0.15"/>
+  </node>
+
+	
+    <!-- imu node -->
+    <group ns="imu_node">
+	  <rosparam file="$(find initial)/config/imu_calibration.yaml" command="load"/>
+	</group>
+  	
+	<node pkg="initial" type="imu_node.py" name="imu_node" output="screen"/>
+	<param name="frame_id" value="imu_link" />
+    <!-- Launch the filter -->
+  	<node name="imu_filter" pkg="imu_filter_madgwick" type="imu_filter_node" output="screen">
+    		<param name="use_mag" value="false" />
+    		<param name="publish_tf" value="false" />
+    		<param name="base_link_frame" value="base_link" />
+    		<param name="imu_link_frame" value="imu_link" />
+    		
+    		<remap from="imu/data_raw" to="/imu/data_raw"/>
+    		<remap from="imu/data" to="/imu/data"/>
+    		
+	</node>
+    
+    
+    <!-- Wall-follow Python node -->
+    <node pkg="initial"
+          type="wall_follow.py"
+          name="wall_follow_node"
+          output="screen" launch-prefix="bash -c 'sleep 5; $0 $@'">
+        <!-- Publish directly to /ackermann_cmd -->
+        <param name="distance_setpoint" value="0.80" />
+	<param name="kp" value="100.0" />
+        <param name="ki" value="1.0" />
+        <param name="kd" value="5.0" />
+	<param name="down_sample" value="4" /> 
+   </node>
+
+
+    <!-- Vesc driver -->
+  <node pkg="vesc_driver" type="vesc_driver_node" name="vesc_driver" output="screen">
+    <param name="port" value="/dev/ttyACM0"/> <!-- adjust if needed -->
+    <param name="duty_cycle_min" value="-1.0"/>
+    <param name="duty_cycle_max" value="1.0"/>
+    <param name="use_imu" value="false"/>
+  </node>
+
+  <!-- cmd_vel node -->
+  <node pkg="initial" type="move.py" name="cmdvel_bridge" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+
+  <!-- telemetry node -->
+  <node pkg="initial" type="telemetry.py" name="cmd_to_telemetry" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+
+  <!-- Telemetry -> Odometry node -->
+  <node pkg="initial" type="odometry.py" name="telemetry_to_odom" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+  <remap from="/odometry" to="/odom" />
+  
+
+
+</launch>

@@ -1,0 +1,93 @@
+<launch>
+    
+
+<!-- Hokuyo LIDAR driver -->
+
+  <node pkg="urg_node" type="urg_node" name="hokuyo_lidar" output="screen">
+    <param name="ip_address" value="192.168.0.10"/>  <!-- adjust for your Hokuyo -->
+    <param name="ip_port" value="10940"/>
+    <param name="frame_id" value="base_link"/>
+    <param name="angle_min" value="-1.5708"/>
+    <param name="angle_max" value="1.5708"/>
+    <param name="min_range" value="0.15"/>
+  </node>
+  
+  
+  <node pkg="tf2_ros" type="static_transform_publisher" name="imu_broadcaster" 
+ 	args="-0.175 0.05 0.0  0.0 0.0 0.7071 0.7071  base_link imu_link" />
+ 	
+
+	
+    <!-- imu node -->
+    <group ns="imu_node">
+	  <rosparam file="$(find initial)/config/imu_calibration.yaml" command="load"/>
+    </group>
+  	
+    <node pkg="initial" type="imu_node.py" name="imu_node" output="screen">
+	<param name="frame_id" value="imu_link" />
+    </node>
+    
+    <!-- Launch the filter -->
+    <node name="imu_filter" pkg="imu_filter_madgwick" type="imu_filter_node" output="screen">
+    	<param name="use_mag" value="false" />
+    	<param name="publish_tf" value="false" />
+    	<param name="base_link_frame" value="base_link" />
+    	<param name="imu_link_frame" value="imu_link" />
+    		
+    	<remap from="imu/data_raw" to="/imu/data_raw"/>
+    	<remap from="imu/data" to="/imu/data"/>
+    		
+    </node>
+    
+        <!-- Vesc driver -->
+  <node pkg="vesc_driver" type="vesc_driver_node" name="vesc_driver" output="screen">
+    <param name="port" value="/dev/ttyACM0"/> <!-- adjust if needed -->
+    <param name="duty_cycle_min" value="-1.0"/>
+    <param name="duty_cycle_max" value="1.0"/>
+    <param name="use_imu" value="true"/>
+  </node>
+
+  <!-- cmd_vel node -->
+  <node pkg="initial" type="move.py" name="cmdvel_bridge" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+
+  <!-- telemetry node -->
+  <node pkg="initial" type="telemetry.py" name="cmd_to_telemetry" output="screen" launch-prefix="bash -c 'sleep 3; $0 $@'"/>
+
+  <!-- Telemetry -> Odometry node -->
+  <node pkg="initial" type="odometry.py" name="telemetry_to_odom" output="screen" launch-prefix="bash -c 'sleep 1; $0 $@'">
+  	<param name="frame_id" value="odom" />
+  </node>
+  
+<!-- SLAM Toolbox: online 2D SLAM + loop closure -->
+  <node pkg="slam_toolbox" type="sync_slam_toolbox_node" name="slam_toolbox" output="screen">
+    <!-- sensor & frame settings -->
+    <param name="scan_topic"   value="/scan"/>
+    <param name="odom_frame"   value="odom"/>
+    <param name="base_frame"   value="base_link"/>
+    <param name="map_frame"    value="map"/>
+    <param name="use_imu"      value="true"/>
+    <!-- advanced tuning can go here if needed -->
+    
+    
+  </node>
+    
+    
+    <!-- Wall-follow Python node -->
+    <node pkg="initial"
+          type="wall_follow.py"
+          name="wall_follow_node"
+          output="screen" launch-prefix="bash -c 'sleep 5; $0 $@'">
+        <!-- Publish directly to /ackermann_cmd -->
+        <param name="distance_setpoint" value="0.5" />
+	<param name="kp" value="90.0" />
+        <param name="ki" value="5.0" />
+        <param name="kd" value="10.0" />
+	<param name="down_sample" value="4" /> 
+   </node>
+
+
+
+  
+
+
+</launch>

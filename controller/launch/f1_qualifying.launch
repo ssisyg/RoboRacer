@@ -1,0 +1,87 @@
+<launch>
+    <!-- Hokuyo LIDAR driver -->
+
+  <node pkg="urg_node" type="urg_node" name="hokuyo_lidar" output="screen">
+    <param name="ip_address" value="192.168.0.10"/>  <!-- adjust for your Hokuyo -->
+    <param name="ip_port" value="10940"/>
+    <param name="frame_id" value="laser"/>
+    <param name="angle_min" value="-90.1"/>
+    <param name="angle_max" value="90.1"/>
+    <param name="min_range" value="0.20"/>
+  </node>
+
+
+    <!-- Static transform from base_link to laser -->
+    <node pkg="tf" type="static_transform_publisher" name="laser_broadcaster"
+          args="0 0 0.1 0 0 0 base_link laser 100" />
+
+
+    <!-- Hector SLAM (no odometry) -->
+        <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen" launch-prefix="bash -c 'sleep 5; $0 $@'">
+        <param name="map_resolution" value="0.05" />
+        <param name="map_size" value="1024" />
+        <param name="map_update_angle_thresh" value="0.06" />
+        <param name="map_update_distance_thresh" value="0.4" />
+        <param name="scan_subscriber_queue_size" value="5" />
+    <param name="pub_map_odom_transform" value="false" />
+    </node>
+
+
+    <!-- QUALIFYING NODE F1 CONTROLLER - QUALIFYING PACE -->
+    <node pkg="initial" type="f1_controller_node" name="f1_controller" output="screen">
+        <param name="kp" value="80.0" />
+        <param name="ki" value="10.0" />
+        <param name="kd" value="20.0" />
+        <param name="angle_kp" value="10.0" />
+        
+        <param name="lookahead_kp" value="20.0" />
+	<param name="lookahead_angle_kp" value="5.0" />
+	<param name="lookahead_time" value="0.5" />
+	<param name="correction_factor" value="0.5" />
+	
+	<param name="wheelbase" value="0.325" />
+	<param name="max_steer_deg" value="30.0" />
+	
+    </node>
+
+    <!-- PATH PLANNING NODES -->
+    <node pkg="initial" type="geometry_path_node" name="geometry_path_node" output="screen" />
+    <node pkg="initial" type="racing_line_node" name="racing_line_node" output="screen" />
+    
+    <!-- Wall-follow Python node DEFAULT CONTROLLER IF QUALIFYING MODE NOT AVAILABLE-->
+    <node pkg="initial"
+          type="wall_follow.py"
+          name="wall_follow_node"
+          output="screen" launch-prefix="bash -c 'sleep 5; $0 $@'">
+        <!-- Publish directly to /ackermann_cmd -->
+        <param name="distance_setpoint" value="0.80" />
+	<param name="kp" value="100.0" />
+        <param name="ki" value="1.0" />
+        <param name="kd" value="5.0" />
+    </node>
+
+    <!-- Vesc driver (low level interface translating low level commands to motor movement) -->
+  <node pkg="vesc_driver" type="vesc_driver_node" name="vesc_driver" output="screen">
+    <param name="port" value="/dev/ttyACM0"/> <!-- adjust if needed -->
+    <param name="duty_cycle_min" value="-1.0"/>
+    <param name="duty_cycle_max" value="1.0"/>
+    <param name="use_imu" value="false"/>
+  </node>
+
+  <!-- cmd_vel node (translating high level msgs to low level commands) -->
+  <node pkg="initial" type="move.py" name="cmdvel_bridge" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+
+  <!-- cmd -> telemetry node -->
+  <node pkg="initial" type="telemetry.py" name="cmd_to_telemetry" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+
+  <!-- telemetry -> odometry node -->
+  <node pkg="initial" type="odometry.py" name="telemetry_to_odom" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+  <rosparam command="load" file="$(find initial)/config/ekf.yaml" />
+  
+  <!-- kalman filtered localization -->
+  <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization_node" output="screen"/>
+  <node pkg="initial" type="localization.py" name="ekf_localization" output="screen"
+      launch-prefix="bash -c 'sleep 5; $0 $@'" />
+
+
+</launch>
