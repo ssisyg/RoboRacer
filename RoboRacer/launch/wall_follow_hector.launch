@@ -1,0 +1,65 @@
+<launch>
+    <!-- Hokuyo LIDAR driver -->
+
+  <node pkg="urg_node" type="urg_node" name="hokuyo_lidar" output="screen">
+    <param name="ip_address" value="192.168.0.10"/>  <!-- adjust for your Hokuyo -->
+    <param name="ip_port" value="10940"/>
+    <param name="frame_id" value="laser"/>
+    <param name="angle_min" value="-90.1"/>
+    <param name="angle_max" value="90.1"/>
+    <param name="min_range" value="0.20"/>
+  </node>
+
+
+    <!-- Static transform from base_link to laser -->
+    <node pkg="tf" type="static_transform_publisher" name="laser_broadcaster"
+          args="0 0 0 0 0 0 base_link laser 100" />
+
+    <!-- Wall-follow Python node -->
+    <node pkg="initial"
+          type="wall_follow.py"
+          name="wall_follow_node"
+          output="screen" launch-prefix="bash -c 'sleep 5; $0 $@'">
+        <!-- Publish directly to /ackermann_cmd -->
+        <param name="distance_setpoint" value="0.6" />
+	<param name="kp" value="110.0" />
+        <param name="ki" value="1.0" />
+        <param name="kd" value="5.0" />
+    </node>
+
+    <!-- Hector SLAM (no odometry) -->
+        <node pkg="hector_mapping" type="hector_mapping" name="hector_mapping" output="screen" launch-prefix="bash -c 'sleep 5; $0 $@'">
+        <param name="map_resolution" value="0.05" />
+        <param name="map_size" value="1024" />
+        <param name="map_update_angle_thresh" value="0.06" />
+        <param name="map_update_distance_thresh" value="0.4" />
+        <param name="scan_subscriber_queue_size" value="5" />
+    <param name="pub_map_odom_transform" value="false" />
+    </node>
+
+    <!-- Vesc driver -->
+  <node pkg="vesc_driver" type="vesc_driver_node" name="vesc_driver" output="screen">
+    <param name="port" value="/dev/ttyACM0"/> <!-- adjust if needed -->
+    <param name="duty_cycle_min" value="-1.0"/>
+    <param name="duty_cycle_max" value="1.0"/>
+    <param name="use_imu" value="false"/>
+  </node>
+
+  <!-- cmd_vel node -->
+  <node pkg="initial" type="move.py" name="cmdvel_bridge" output="screen" launch-prefix="bash -c 'sleep 10; $0 $@'"/>
+
+    <!-- VESC driver node -->
+    <!--
+    <node pkg="vesc_ackermann" type="ackermann_to_vesc_node" name="ackermann_to_vesc_node">
+        <param name="port" value="/dev/ttyACM0" />
+        <param name="speed_to_erpm_gain" value="4614" />
+        <param name="speed_to_erpm_offset" value="0.0" />
+        <param name="steering_angle_to_servo_gain" value="0.5" />
+        <param name="steering_angle_to_servo_offset" value="0.5" />
+        <remap from="ackermann_cmd" to="/ackermann_cmd"/>
+    </node>
+-->
+    <!-- RViz for visualization -->
+    <!--
+    <node pkg="rviz" type="rviz" name="rviz"/> -->
+</launch>
